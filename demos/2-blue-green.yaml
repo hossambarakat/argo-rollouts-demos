@@ -1,0 +1,90 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: argo-bluegreen-rollout
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: argo-bluegreen-demo
+  template:
+    metadata:
+      labels:
+        app: argo-bluegreen-demo
+    spec:
+      containers:
+      - name: argo-bluegreen-demo
+        image: argoproj/rollouts-demo:green
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+  strategy:
+    blueGreen:
+      activeService: argo-bluegreen-active
+      previewService: argo-bluegreen-preview
+      # Rollouts can be resumed using: `kubectl argo rollouts promote ROLLOUT`
+      autoPromotionEnabled: false
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-bluegreen-active
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: argo-bluegreen-demo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-bluegreen-preview
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: argo-bluegreen-demo
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: argo-bluegreen-ing
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  argo-bluegreen-active
+                port:
+                  number: 8090
+      host: argo-bluegreen.local
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  argo-bluegreen-preview
+                port:
+                  number: 8090
+      host: argo-bluegreen-preview.local
+    
+    

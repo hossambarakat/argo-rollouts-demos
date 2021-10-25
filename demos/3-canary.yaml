@@ -1,0 +1,97 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: argo-demo-rollout
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: argo-demo
+  template:
+    metadata:
+      labels:
+        app: argo-demo
+    spec:
+      containers:
+      - name: argo-demo
+        image: argoproj/rollouts-demo:green
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+  strategy:
+    canary:
+      canaryService: argo-demo-canary
+      stableService: argo-demo-stable
+      trafficRouting:
+        nginx:
+          stableIngress: argo-demo-ing  # required
+      steps:
+      - setWeight: 10
+      - pause: {}         # pause indefinitely
+      - setWeight: 20
+      - pause: {duration: 5s}
+      - setWeight: 30
+      - pause: {duration: 5s}
+      - setWeight: 40
+      - pause: {duration: 5s}
+      - setWeight: 50
+      - pause: {duration: 5s}
+      - setWeight: 60
+      - pause: {duration: 5s}
+      - setWeight: 70
+      - pause: {duration: 5s}
+      - setWeight: 80
+      - pause: {duration: 5s}
+      - setWeight: 90
+      - pause: {duration: 5s}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-demo-canary
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: argo-demo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-demo-stable
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: argo-demo
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: argo-demo-ing
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  argo-demo-stable
+                port:
+                  number: 8090
+      host: localhost

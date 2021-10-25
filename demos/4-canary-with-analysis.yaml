@@ -1,0 +1,118 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: argo-demo-rollout
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: argo-demo
+  template:
+    metadata:
+      labels:
+        app: argo-demo
+    spec:
+      containers:
+      - name: argo-demo
+        image: argoproj/rollouts-demo:green
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+  strategy:
+    canary:
+      canaryService: argo-demo-canary
+      stableService: argo-demo-stable
+      trafficRouting:
+        nginx:
+          stableIngress: argo-demo-ing  # required
+      # analysis will be performed in background, while rollout is progressing through its steps
+      analysis:
+        templates:
+        - templateName: success-rate
+        # startingStep: 2 # delay starting analysis run until setWeight: 40%
+        args:
+        - name: service-name
+          value: argo-demo-stable
+      steps:
+      - setWeight: 20
+      - pause: {}  # pause indefinitely
+      - setWeight: 40
+      - pause: {duration: 10s}
+      - setWeight: 60
+      - pause: {duration: 15s}
+      - setWeight: 80
+      - pause: {duration: 15s}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-demo-canary
+spec:
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: argo-demo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-demo-stable
+spec:
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: argo-demo
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: argo-demo-ing
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  argo-demo-stable
+                port:
+                  number: 8090
+      host: localhost
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: success-rate
+    interval: 5s #defines an interval string (e.g. 30s, 5m, 1h) between each measurement.
+    # NOTE: prometheus queries return results in the form of a vector.
+    # So it is common to access the index 0 of the returned array to obtain the value
+    successCondition: len(result) == 0 || result[0] >= 0.95
+    failureLimit: 3
+    provider:
+      prometheus:
+        address: http://prometheus-server.monitoring.svc.cluster.local
+        query: |
+          sum(rate(
+            nginx_ingress_controller_requests{namespace="default", service="argo-demo-stable",status="200"}[2m]
+          ) >0) / 
+          sum(rate(
+            nginx_ingress_controller_requests{namespace="default", service="argo-demo-stable"}[2m]
+          ) >0)

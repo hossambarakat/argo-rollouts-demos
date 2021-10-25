@@ -1,0 +1,1 @@
+minikube start --kubernetes-version=v1.22.2
