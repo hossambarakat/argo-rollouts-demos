@@ -32,19 +32,11 @@ spec:
       - pause: {}         # pause indefinitely
       - setWeight: 20
       - pause: {duration: 5s}
-      - setWeight: 30
-      - pause: {duration: 5s}
       - setWeight: 40
-      - pause: {duration: 5s}
-      - setWeight: 50
       - pause: {duration: 5s}
       - setWeight: 60
       - pause: {duration: 5s}
-      - setWeight: 70
-      - pause: {duration: 5s}
       - setWeight: 80
-      - pause: {duration: 5s}
-      - setWeight: 90
       - pause: {duration: 5s}
 ---
 apiVersion: v1
