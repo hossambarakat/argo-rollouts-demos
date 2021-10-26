@@ -111,8 +111,8 @@ spec:
         address: http://prometheus-server.monitoring.svc.cluster.local
         query: |
           sum(rate(
-            nginx_ingress_controller_requests{namespace="default", service="argo-demo-stable",status="200"}[2m]
+            nginx_ingress_controller_requests{namespace="default", service=~"{{args.service-name}}",status="200"}[2m]
           ) >0) / 
           sum(rate(
-            nginx_ingress_controller_requests{namespace="default", service="argo-demo-stable"}[2m]
+            nginx_ingress_controller_requests{namespace="default", service=~"{{args.service-name}}"}[2m]
           ) >0)
